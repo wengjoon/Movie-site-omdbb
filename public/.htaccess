@@ -96,4 +96,25 @@
         AddOutputFilterByType DEFLATE text/plain
         AddOutputFilterByType DEFLATE text/xml
     </IfModule>
-</IfModule>s
+</IfModule>
+
+# Add security headers
+<IfModule mod_headers.c>
+    # Protect against XSS attacks
+    Header set X-XSS-Protection "1; mode=block"
+    
+    # Prevent MIME-type sniffing
+    Header set X-Content-Type-Options "nosniff"
+    
+    # Prevent clickjacking
+    Header set X-Frame-Options "SAMEORIGIN"
+    
+    # Enforce HTTPS
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
+    
+    # Referrer policy
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # Permissions policy
+    Header set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+</IfModule>

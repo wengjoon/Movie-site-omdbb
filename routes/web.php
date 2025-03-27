@@ -3,6 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\MovieController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\Api\MovieApiController;
+use App\Http\Middleware\SearchRateLimiter; // Add this import
 
 /*
 |--------------------------------------------------------------------------
@@ -16,8 +18,16 @@ use App\Http\Controllers\SitemapController;
 */
 
 Route::get('/', [MovieController::class, 'index'])->name('movies.index');
-Route::get('/search', [MovieController::class, 'search'])->name('movies.search');
+Route::get('/search', [MovieController::class, 'search'])
+    ->middleware(SearchRateLimiter::class) // Use class directly instead of alias
+    ->name('movies.search');
 Route::get('/movie/{id}', [MovieController::class, 'show'])->name('movies.show');
 
 // Sitemap route
 Route::get('/sitemap.xml', [SitemapController::class, 'index']);
+
+// If this API route exists
+if (method_exists(MovieApiController::class, 'search')) {
+    Route::get('/api/movies/search', [MovieApiController::class, 'search'])
+        ->middleware(SearchRateLimiter::class); // Use class directly
+}

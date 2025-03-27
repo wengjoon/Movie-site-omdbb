@@ -213,5 +213,8 @@ return [
     */
 
     'partitioned' => env('SESSION_PARTITIONED_COOKIE', false),
+    'secure' => env('SESSION_SECURE_COOKIE', true), // Requires HTTPS
+'http_only' => true, // Prevents JavaScript from accessing cookies
+'same_site' => 'lax', // Restricts cross-site requests
 
 ];

@@ -88,11 +88,18 @@
                 <p class="search-subtitle">Find anything you want to watch in HD. No signup, no fees, just pure entertainment. Ready to search?</p>
                 
                 <form action="{{ route('movies.search') }}" method="get" class="search-box mx-auto">
-                    <div class="input-group mb-3">
-                        <input type="text" name="query" class="form-control search-input" placeholder="Search for movies or TV shows..." required>
-                        <button class="btn btn-primary search-btn" type="submit">Search</button>
-                    </div>
-                </form>
+    
+    <div class="input-group mb-3">
+        <input type="text" name="query" class="form-control search-input" placeholder="Search for movies or TV shows..." required>
+        <button class="btn btn-primary search-btn" type="submit">Search</button>
+    </div>
+</form>
+
+@if(session('error'))
+<div class="alert alert-danger mt-3">
+    {{ session('error') }}
+</div>
+@endif
             </div>
         </div>
     </div>
