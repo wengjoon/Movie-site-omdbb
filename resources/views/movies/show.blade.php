@@ -8,7 +8,7 @@
     $releaseYear = isset($movie['release_date']) ? ' (' . substr($movie['release_date'], 0, 4) . ')' : '';
     
     // Title format: "Movie Title (Year)" - site name at the end
-    $seoTitle = $movieTitle . $releaseYear . ' - Watch Free HD';
+    $seoTitle = $movieTitle . $releaseYear . ' -  Full Movie Watch Online 123 Movies ';
     
     // Description focusing on the movie first
     $overview = isset($movie['overview']) ? str_replace('"', "'", mb_substr($movie['overview'], 0, 155)) . '...' : '';
@@ -17,18 +17,42 @@
     $genres = [];
     if(isset($movie['genres'])) {
         foreach($movie['genres'] as $genre) {
-            $genres[] = $genre['name'];
+            if(is_array($genre)) {
+                $genres[] = $genre['name'];
+            } else {
+                $genres[] = $genre;
+            }
         }
     }
     
     // Keywords with movie title first
     $keywords = "{$movieTitle}, " . implode(', ', $genres) . ", 123 movies pro, watch free, stream online, HD quality";
     
-    $posterImg = isset($movie['poster_path']) ? 'https://image.tmdb.org/t/p/w500' . $movie['poster_path'] : asset(config('seo.default_og_image'));
+    // Handle the poster path for OMDB or TMDB
+    $posterImg = '';
+    if(isset($movie['poster_path']) && strpos($movie['poster_path'], 'http') === 0) {
+        // OMDB full URL
+        $posterImg = $movie['poster_path'];
+    } elseif(isset($movie['poster_path'])) {
+        // TMDB path
+        $posterImg = 'https://image.tmdb.org/t/p/w500' . $movie['poster_path'];
+    } elseif(isset($movie['Poster']) && $movie['Poster'] !== 'N/A') {
+        // OMDB Poster field
+        $posterImg = $movie['Poster'];
+    } else {
+        // Default image
+        $posterImg = asset(config('seo.default_og_image'));
+    }
+    
+    // Use the poster as backdrop if no backdrop is available
+    $backdropImg = $posterImg;
+    if(!empty($movie['backdrop_path'])) {
+        $backdropImg = 'https://image.tmdb.org/t/p/original' . $movie['backdrop_path'];
+    }
     
     // Rating values for schema markup
-    $ratingValue = number_format($movie['vote_average'] ?? 0, 1);
-    $ratingCount = $movie['vote_count'] ?? 0;
+    $ratingValue = number_format($movie['vote_average'] ?? $movie['imdbRating'] ?? 0, 1);
+    $ratingCount = $movie['vote_count'] ?? (isset($movie['imdbVotes']) ? str_replace(',', '', $movie['imdbVotes']) : 0);
 @endphp
 
 @section('seo_title', $seoTitle)
@@ -41,57 +65,7 @@
 {{-- Structured data for movie with enhanced AggregateRating --}}
 @section('structured_data')
 <script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "Movie",
-  "name": "{{ $movie['title'] ?? '' }}",
-  "description": "{{ $movie['overview'] ?? 'Watch this movie online for free in HD quality.' }}",
-  @if(!empty($movie['poster_path']))
-  "image": "https://image.tmdb.org/t/p/w500{{ $movie['poster_path'] }}",
-  @endif
-  @if(!empty($movie['release_date']))
-  "datePublished": "{{ $movie['release_date'] }}",
-  @endif
-  "aggregateRating": {
-    "@type": "AggregateRating",
-    "ratingValue": "{{ $ratingValue }}",
-    "bestRating": "10",
-    "worstRating": "0",
-    "ratingCount": "{{ $ratingCount }}",
-    "reviewCount": "{{ $ratingCount }}"
-  },
-  @if(!empty($movie['directors']))
-  "director": [
-    @foreach($movie['directors'] as $index => $director)
-    {
-      "@type": "Person",
-      "name": "{{ $director }}"
-    }@if($index < count($movie['directors']) - 1),@endif
-    @endforeach
-  ],
-  @endif
-  @if(!empty($movie['top_cast']))
-  "actor": [
-    @foreach($movie['top_cast'] as $index => $actor)
-    {
-      "@type": "Person",
-      "name": "{{ $actor }}"
-    }@if($index < count($movie['top_cast']) - 1),@endif
-    @endforeach
-  ],
-  @endif
-  @if(isset($movie['genres']) && count($movie['genres']) > 0)
-  "genre": [
-    @foreach($movie['genres'] as $index => $genre)
-    "{{ $genre['name'] }}"@if($index < count($movie['genres']) - 1),@endif
-    @endforeach
-  ],
-  @endif
-  "potentialAction": {
-    "@type": "WatchAction",
-    "target": "{{ url()->current() }}"
-  }
-}
+{!! json_encode(\App\Helpers\SeoHelper::movieSchema($movie), JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) !!}
 </script>
 
 {{-- Additionally adding review schema if reviews exist --}}
@@ -112,7 +86,7 @@
       },
       "reviewRating": {
         "@type": "Rating",
-        "ratingValue": "{{ $review['rating'] ?? $movie['vote_average'] ?? 5 }}",
+        "ratingValue": "{{ $review['rating'] ?? $movie['vote_average'] ?? $movie['imdbRating'] ?? 5 }}",
         "bestRating": "10",
         "worstRating": "0"
       },
@@ -136,8 +110,8 @@
             <li class="breadcrumb-item"><a href="{{ route('movies.index') }}">Home</a></li>
             @if(isset($movie['genres']) && count($movie['genres']) > 0)
                 <li class="breadcrumb-item">
-                    <a href="{{ route('movies.search', ['query' => $movie['genres'][0]['name']]) }}">
-                        {{ $movie['genres'][0]['name'] }}
+                    <a href="{{ route('movies.search', ['query' => is_array($movie['genres'][0]) ? $movie['genres'][0]['name'] : $movie['genres'][0] ]) }}">
+                        {{ is_array($movie['genres'][0]) ? $movie['genres'][0]['name'] : $movie['genres'][0] }}
                     </a>
                 </li>
             @endif
@@ -146,29 +120,84 @@
     </nav>
 </div>
 
-<!-- Hero Section with Backdrop -->
-<div class="movie-hero">
-    @if($movie['backdrop_path'])
-        <div class="backdrop-wrapper">
-            <img src="https://image.tmdb.org/t/p/original{{ $movie['backdrop_path'] }}" alt="{{ $movie['title'] }}" class="backdrop-image" loading="lazy">
-            <div class="backdrop-overlay"></div>
-        </div>
-    @else
-        <div class="backdrop-wrapper no-backdrop">
-            <div class="backdrop-overlay"></div>
-        </div>
-    @endif
-
+<!-- Hero Section with Netflix-style Backdrop using the Poster -->
+<div class="movie-hero" style="background-image: url('{{ $backdropImg }}');" aria-labelledby="movie-title">
+    <div class="backdrop-overlay" aria-hidden="true"></div>
     <div class="container hero-content">
         <div class="row">
-            <div class="col-md-8 offset-md-2 text-center">
-                <h1 class="movie-hero-title">{{ $movie['title'] }}</h1>
+            <div class="col-md-8">
+                <h1 id="movie-title" class="movie-hero-title">{{ $movie['title'] }}</h1>
+                
+                <div class="movie-meta mb-3">
+                    @if(isset($movie['release_date']) && !empty($movie['release_date']))
+                        <span class="movie-year">{{ \Carbon\Carbon::parse($movie['release_date'])->format('Y') }}</span>
+                    @elseif(isset($movie['Year']) && !empty($movie['Year']))
+                        <span class="movie-year">{{ $movie['Year'] }}</span>
+                    @endif
+                    
+                    @if(isset($movie['runtime']) && $movie['runtime'] > 0)
+                        <span class="movie-runtime">{{ floor($movie['runtime'] / 60) }}h {{ $movie['runtime'] % 60 }}m</span>
+                    @elseif(isset($movie['Runtime']) && $movie['Runtime'] !== 'N/A')
+                        <span class="movie-runtime">{{ $movie['Runtime'] }}</span>
+                    @endif
+                    
+                    <span class="movie-rating-badge">
+                        <i class="bi bi-star-fill me-1" aria-hidden="true"></i> <span>{{ $ratingValue }}</span>
+                    </span>
+                </div>
+                
                 @if(isset($movie['tagline']) && !empty($movie['tagline']))
                     <p class="movie-tagline">{{ $movie['tagline'] }}</p>
                 @endif
-                <button id="playTrailerBtn" class="btn btn-danger btn-lg play-button mt-4">
-                    <i class="bi bi-play-fill me-2"></i> Watch Now
-                </button>
+                
+                <div class="movie-overview-hero mb-4">
+                    @if(isset($movie['overview']) && !empty($movie['overview']))
+                        {{ $movie['overview'] }}
+                    @elseif(isset($movie['Plot']) && $movie['Plot'] !== 'N/A')
+                        {{ $movie['Plot'] }}
+                    @else
+                        No description available.
+                    @endif
+                </div>
+                
+                <div class="movie-credits-hero mb-4">
+                    @if(!empty($movie['directors']))
+                        <div class="credit-row">
+                            <span class="credit-title">Director{{ count($movie['directors']) > 1 ? 's' : '' }}:</span>
+                            <span class="credit-people">{{ implode(', ', $movie['directors']) }}</span>
+                        </div>
+                    @elseif(isset($movie['Director']) && $movie['Director'] !== 'N/A')
+                        <div class="credit-row">
+                            <span class="credit-title">Director{{ strpos($movie['Director'], ',') !== false ? 's' : '' }}:</span>
+                            <span class="credit-people">{{ $movie['Director'] }}</span>
+                        </div>
+                    @endif
+                    
+                    @if(!empty($movie['top_cast']))
+                        <div class="credit-row">
+                            <span class="credit-title">Starring:</span>
+                            <span class="credit-people">{{ implode(', ', $movie['top_cast']) }}</span>
+                        </div>
+                    @elseif(isset($movie['Actors']) && $movie['Actors'] !== 'N/A')
+                        <div class="credit-row">
+                            <span class="credit-title">Starring:</span>
+                            <span class="credit-people">{{ $movie['Actors'] }}</span>
+                        </div>
+                    @endif
+                </div>
+                
+                
+                <div class="hero-buttons">
+                @if(config('site.show_watch_button', true))
+                    <button id="playTrailerBtn" class="btn btn-danger btn-lg me-2" aria-label="Watch {{ $movie['title'] }}">
+                        <i class="bi bi-play-fill me-2" aria-hidden="true"></i> Watch Now
+                    </button>
+                @endif
+                    
+                    <a href="#" class="btn btn-outline-light btn-lg" aria-label="Add {{ $movie['title'] }} to my list">
+                        <i class="bi bi-plus-lg me-2" aria-hidden="true"></i> Add to List
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -177,18 +206,13 @@
 <!-- Movie Details Section -->
 <div class="container movie-details">
     <div class="row">
-        <!-- Movie Poster Column -->
+        <!-- Left Column - Poster and Ratings -->
         <div class="col-md-4 mb-4">
-            <div class="poster-container">
-                @if($movie['poster_path'])
-                    <img src="https://image.tmdb.org/t/p/w500{{ $movie['poster_path'] }}" class="img-fluid movie-poster" alt="{{ $movie['title'] }}" loading="lazy">
-                @else
-                    <div class="no-poster d-flex align-items-center justify-content-center">
-                        <i class="bi bi-film" style="font-size: 5rem;"></i>
-                    </div>
-                @endif
+            <div class="detail-poster-container">
+                <!-- Display poster image -->
+                <img src="{{ $posterImg }}" class="img-fluid movie-poster" alt="{{ $movie['title'] }} movie poster" loading="lazy">
                 
-                <!-- On-page aggregate rating markup with visible elements -->
+                <!-- Aggregate rating display -->
                 <div class="rating-container mt-3">
                     <div class="aggregate-rating" itemprop="aggregateRating" itemscope itemtype="https://schema.org/AggregateRating">
                         <meta itemprop="worstRating" content="0">
@@ -198,112 +222,129 @@
                         <meta itemprop="reviewCount" content="{{ $ratingCount }}">
                         
                         <div class="rating-display text-center">
-                            <div class="rating-stars">
+                            <div class="rating-stars" aria-label="Rating: {{ $ratingValue }} out of 10">
                                 @for ($i = 1; $i <= 5; $i++)
                                     @if ($i <= round($ratingValue / 2))
-                                        <i class="bi bi-star-fill text-warning"></i>
+                                        <i class="bi bi-star-fill text-warning" aria-hidden="true"></i>
                                     @elseif ($i - 0.5 <= $ratingValue / 2)
-                                        <i class="bi bi-star-half text-warning"></i>
+                                        <i class="bi bi-star-half text-warning" aria-hidden="true"></i>
                                     @else
-                                        <i class="bi bi-star text-warning"></i>
+                                        <i class="bi bi-star text-warning" aria-hidden="true"></i>
                                     @endif
                                 @endfor
                             </div>
                             <div class="rating-value fs-4 fw-bold">
                                 {{ $ratingValue }}/10
                             </div>
-                            <div class="rating-count text-muted">
+                            <div class="rating-count text-white">
                                 Based on {{ number_format($ratingCount) }} ratings
                             </div>
                         </div>
                     </div>
                 </div>
+                
+                <!-- OMDB Ratings Section -->
+                @if(isset($movie['ratings']) && is_array($movie['ratings']) && count($movie['ratings']) > 0)
+                <div class="mt-4 ratings-section">
+                    <h2 class="mb-3">Ratings</h2>
+                    @foreach($movie['ratings'] as $rating)
+                        <div class="rating-card p-3 text-center mb-3">
+                            <h3 class="mb-2">{{ $rating['Source'] }}</h3>
+                            <div class="rating-value">{{ $rating['Value'] }}</div>
+                        </div>
+                    @endforeach
+                </div>
+                @endif
             </div>
         </div>
 
-        <!-- Movie Info Column -->
+        <!-- Right Column - Details and Info -->
         <div class="col-md-8">
-            <div class="movie-info-card">
-                <!-- Hidden schema markup for the movie as a whole -->
-                <div itemscope itemtype="https://schema.org/Movie" style="display:none;">
-                    <meta itemprop="name" content="{{ $movie['title'] ?? '' }}">
-                    <meta itemprop="description" content="{{ $movie['overview'] ?? '' }}">
-                    @if(!empty($movie['poster_path']))
-                    <meta itemprop="image" content="https://image.tmdb.org/t/p/w500{{ $movie['poster_path'] }}">
-                    @endif
-                    @if(!empty($movie['release_date']))
-                    <meta itemprop="datePublished" content="{{ $movie['release_date'] }}">
-                    @endif
-                    <!-- Linked to the visible aggregateRating above -->
-                </div>
-                
-                <div class="movie-meta">
-                    @if(isset($movie['release_date']) && !empty($movie['release_date']))
-                        <span class="movie-year">{{ \Carbon\Carbon::parse($movie['release_date'])->format('Y') }}</span>
-                    @endif
-                    
-                    @if(isset($movie['runtime']) && $movie['runtime'] > 0)
-                        <span class="movie-runtime">{{ floor($movie['runtime'] / 60) }}h {{ $movie['runtime'] % 60 }}m</span>
-                    @endif
-                    
-                    <span class="movie-rating-badge">
-                        <i class="bi bi-star-fill me-1"></i> {{ $ratingValue }}
-                    </span>
-                </div>
-                
+            <!-- Genre badges -->
+            <div class="section-title" id="genres-heading">Genres</div>
+            <div class="movie-genres mb-4" aria-labelledby="genres-heading">
                 @if(isset($movie['genres']) && count($movie['genres']) > 0)
-                    <div class="movie-genres mb-4">
-                        @foreach($movie['genres'] as $genre)
-                            <a href="{{ route('movies.search', ['query' => $genre['name']]) }}" class="genre-badge">{{ $genre['name'] }}</a>
-                        @endforeach
-                    </div>
+                    @foreach($movie['genres'] as $genre)
+                        <a href="{{ route('movies.search', ['query' => is_array($genre) ? $genre['name'] : $genre]) }}" class="genre-badge">
+                            {{ is_array($genre) ? $genre['name'] : $genre }}
+                        </a>
+                    @endforeach
+                @elseif(isset($movie['Genre']) && $movie['Genre'] !== 'N/A')
+                    @foreach(explode(', ', $movie['Genre']) as $genre)
+                        <a href="{{ route('movies.search', ['query' => $genre]) }}" class="genre-badge">{{ $genre }}</a>
+                    @endforeach
                 @endif
-                
-                @if(isset($movie['overview']) && !empty($movie['overview']))
-                    <div class="movie-overview">
-                        {{ $movie['overview'] }}
-                    </div>
-                @endif
-                
-                <div class="movie-credits">
-                    @if(count($movie['directors']) > 0)
-                        <div class="credit-row">
-                            <span class="credit-title">Director{{ count($movie['directors']) > 1 ? 's' : '' }}:</span>
-                            <span class="credit-people">{{ implode(', ', $movie['directors']) }}</span>
+            </div>
+            
+            <!-- Additional Writer info -->
+            @if(isset($movie['Writer']) && $movie['Writer'] !== 'N/A')
+                <div class="section-title" id="writers-heading">Writers</div>
+                <div class="info-section mb-4" aria-labelledby="writers-heading">
+                    <p class="mb-0">{{ $movie['Writer'] }}</p>
+                </div>
+            @endif
+            
+            <!-- Additional Movie Info Sections -->
+            <div class="section-title" id="details-heading">Details</div>
+            <div class="info-section mb-4" aria-labelledby="details-heading">
+                <div class="row">
+                    @if(isset($movie['Production']) && $movie['Production'] !== 'N/A')
+                    <div class="col-md-6 mb-3">
+                        <div class="info-item">
+                            <h3>Production</h3>
+                            <p class="mb-0">{{ $movie['Production'] }}</p>
                         </div>
+                    </div>
                     @endif
                     
-                    @if(count($movie['top_cast']) > 0)
-                        <div class="credit-row">
-                            <span class="credit-title">Cast:</span>
-                            <span class="credit-people">{{ implode(', ', $movie['top_cast']) }}</span>
+                    @if(isset($movie['Country']) && $movie['Country'] !== 'N/A')
+                    <div class="col-md-6 mb-3">
+                        <div class="info-item">
+                            <h3>Country</h3>
+                            <p class="mb-0">{{ $movie['Country'] }}</p>
                         </div>
+                    </div>
+                    @endif
+                    
+                    @if(isset($movie['Language']) && $movie['Language'] !== 'N/A')
+                    <div class="col-md-6 mb-3">
+                        <div class="info-item">
+                            <h3>Language</h3>
+                            <p class="mb-0">{{ $movie['Language'] }}</p>
+                        </div>
+                    </div>
+                    @endif
+                    
+                    @if(isset($movie['BoxOffice']) && $movie['BoxOffice'] !== 'N/A')
+                    <div class="col-md-6 mb-3">
+                        <div class="info-item">
+                            <h3>Box Office</h3>
+                            <p class="mb-0">{{ $movie['BoxOffice'] }}</p>
+                        </div>
+                    </div>
                     @endif
                 </div>
-                
-                <div class="movie-actions mt-4">
-                    <button id="playTrailerBtnAlt" class="btn btn-danger me-2">
-                        <i class="bi bi-play-fill me-2"></i> Watch Now
-                    </button>
-                    
-                    <a href="#" class="btn btn-outline-light">
-                        <i class="bi bi-plus-lg me-2"></i> Add to List
-                    </a>
-                </div>
-                
-                <!-- Social Sharing Buttons -->
-                <div class="mt-4 social-share">
-                    <p class="text-muted mb-2">Share this movie:</p>
-                    <a href="https://www.facebook.com/sharer/sharer.php?u={{ urlencode(url()->current()) }}" target="_blank" class="btn btn-sm btn-outline-primary me-2">
-                        <i class="bi bi-facebook"></i> Facebook
-                    </a>
-                    <a href="https://twitter.com/intent/tweet?text=Watch {{ urlencode($movie['title']) }}&url={{ urlencode(url()->current()) }}" target="_blank" class="btn btn-sm btn-outline-info me-2">
-                        <i class="bi bi-twitter"></i> Twitter
-                    </a>
-                    <a href="https://wa.me/?text=Watch {{ urlencode($movie['title']) }}: {{ urlencode(url()->current()) }}" target="_blank" class="btn btn-sm btn-outline-success">
-                        <i class="bi bi-whatsapp"></i> WhatsApp
-                    </a>
-                </div>
+            </div>
+            
+            @if(isset($movie['Awards']) && $movie['Awards'] !== 'N/A')
+            <div class="section-title" id="awards-heading">Awards</div>
+            <div class="info-section mb-4" aria-labelledby="awards-heading">
+                <p class="mb-0">{{ $movie['Awards'] }}</p>
+            </div>
+            @endif
+            
+            <!-- Social Sharing Buttons -->
+            <div class="section-title" id="share-heading">Share</div>
+            <div class="social-share mb-4" aria-labelledby="share-heading">
+                <a href="https://www.facebook.com/sharer/sharer.php?u={{ urlencode(url()->current()) }}" target="_blank" class="btn btn-outline-primary me-2" aria-label="Share on Facebook">
+                    <i class="bi bi-facebook" aria-hidden="true"></i> Facebook
+                </a>
+                <a href="https://twitter.com/intent/tweet?text=Watch {{ urlencode($movie['title']) }}&url={{ urlencode(url()->current()) }}" target="_blank" class="btn btn-outline-info me-2" aria-label="Share on Twitter">
+                    <i class="bi bi-twitter" aria-hidden="true"></i> Twitter
+                </a>
+                <a href="https://wa.me/?text=Watch {{ urlencode($movie['title']) }}: {{ urlencode(url()->current()) }}" target="_blank" class="btn btn-outline-success" aria-label="Share on WhatsApp">
+                    <i class="bi bi-whatsapp" aria-hidden="true"></i> WhatsApp
+                </a>
             </div>
         </div>
     </div>
@@ -312,9 +353,9 @@
     @if(isset($movie['reviews']) && count($movie['reviews']) > 0)
     <div class="row mt-5">
         <div class="col-12">
-            <h2 class="mb-4">User Reviews</h2>
+            <h2 class="section-title-large mb-4" id="reviews-heading">User Reviews</h2>
             
-            <div class="reviews-container">
+            <div class="reviews-container" aria-labelledby="reviews-heading">
                 @foreach($movie['reviews'] as $review)
                 <div class="review-card mb-4" itemprop="review" itemscope itemtype="https://schema.org/Review">
                     <div class="card">
@@ -329,10 +370,10 @@
                             <div class="review-rating" itemprop="reviewRating" itemscope itemtype="https://schema.org/Rating">
                                 <meta itemprop="worstRating" content="0">
                                 <meta itemprop="bestRating" content="10">
-                                <meta itemprop="ratingValue" content="{{ $review['rating'] ?? $movie['vote_average'] ?? 5 }}">
+                                <meta itemprop="ratingValue" content="{{ $review['rating'] ?? $movie['vote_average'] ?? $movie['imdbRating'] ?? 5 }}">
                                 <span class="badge bg-warning text-dark">
-                                    <i class="bi bi-star-fill me-1"></i>
-                                    {{ number_format($review['rating'] ?? $movie['vote_average'] ?? 5, 1) }}/10
+                                    <i class="bi bi-star-fill me-1" aria-hidden="true"></i>
+                                    {{ number_format($review['rating'] ?? $movie['vote_average'] ?? $movie['imdbRating'] ?? 5, 1) }}/10
                                 </span>
                             </div>
                         </div>
@@ -353,42 +394,106 @@
     <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="trailerModalLabel">{{ $movie['title'] }}</h5>
+                <h2 class="modal-title" id="trailerModalLabel">{{ $movie['title'] }}</h2>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-0">
                 <div class="ratio ratio-16x9">
-                    <iframe id="trailerIframe" src="about:blank" allowfullscreen></iframe>
+                    <iframe id="trailerIframe" src="about:blank" allowfullscreen title="{{ $movie['title'] }} trailer"></iframe>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Offer Modal -->
+<div class="modal fade" id="offerModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="offerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content offer-modal-content">
+            <div class="modal-header offer-modal-header">
+                <h2 class="modal-title" id="offerModalLabel">
+                    <i class="bi bi-exclamation-triangle-fill me-2 text-warning" aria-hidden="true"></i>
+                    {{ config('site.offer_title', 'Security Warning!') }}
+                </h2>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="display: none;"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="offer-text">{{ config('site.offer_text', 'Your connection is not secure. Streaming content without protection puts your data at risk.') }}</p>
+                <div class="d-grid gap-2 mt-4">
+                    <a href="{{ config('site.offer_url', '#') }}" class="btn btn-warning btn-lg offer-cta-button" target="_blank">
+                        {{ config('site.offer_button_text', 'Protect My Privacy Now') }}
+                    </a>
+                    <button type="button" id="skipOfferButton" class="btn btn-outline-light btn-lg mt-2" disabled aria-label="Skip offer">
+                        {{ config('site.offer_skip_text', 'Skip (Available in %s seconds)') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
 @push('styles')
 <style>
-    /* Hero Section */
+/* Offer Modal Styling */
+    .offer-modal-content {
+        background-color: #1a1a1a;
+        border: 1px solid rgba(255, 193, 7, 0.3);
+        box-shadow: 0 0 20px rgba(255, 193, 7, 0.2);
+    }
+    
+    .offer-modal-header {
+        background-color: #111;
+        border-bottom: 1px solid rgba(255, 193, 7, 0.2);
+    }
+    
+    .offer-text {
+        font-size: 1.1rem;
+        line-height: 1.6;
+        color: #e5e5e5;
+    }
+    
+    .offer-cta-button {
+        background: linear-gradient(to right, #ffc107, #ff9800);
+        border: none;
+        color: #000;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+        padding: 12px 24px;
+    }
+    
+    .offer-cta-button:hover {
+        background: linear-gradient(to right, #ff9800, #ffc107);
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(255, 152, 0, 0.3);
+        color: #000;
+    }
+    
+    #skipOfferButton {
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        transition: all 0.3s ease;
+    }
+    
+    #skipOfferButton:not([disabled]):hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    #skipOfferButton[disabled] {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    /* Hero Section - Netflix Style */
     .movie-hero {
         position: relative;
-        height: 80vh;
-        min-height: 500px;
-        max-height: 700px;
+        min-height: 80vh;
+        background-size: cover;
+        background-position: center;
         margin-top: -24px;
-    }
-    
-    .backdrop-wrapper {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: -1;
-    }
-    
-    .backdrop-image {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
+        color: white;
+        display: flex;
+        align-items: center;
     }
     
     .backdrop-overlay {
@@ -397,40 +502,83 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background: linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(20,20,20,1) 100%);
-    }
-    
-    .no-backdrop {
-        background-color: #141414;
+        background: linear-gradient(to right, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 30%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0.2) 100%),
+                    linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 20%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0) 60%);
+        z-index: 1;
     }
     
     .hero-content {
         position: relative;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-end;
-        padding-bottom: 5rem;
+        z-index: 2;
+        padding: 3rem 0;
     }
     
     .movie-hero-title {
-        font-size: 4rem;
+        font-size: 3.5rem;
         font-weight: 700;
-        margin-bottom: 0.5rem;
+        margin-bottom: 1rem;
         text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
     }
     
-    .movie-tagline {
-        font-size: 1.5rem;
-        color: #e5e5e5;
-        margin-bottom: 2rem;
-        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+    .movie-overview-hero {
+        font-size: 1.1rem;
+        max-width: 700px;
+        line-height: 1.6;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
     }
     
-    .play-button {
-        font-size: 1.2rem;
-        padding: 0.8rem 2rem;
+    .movie-tagline {
+        font-size: 1.4rem;
+        font-style: italic;
+        margin-bottom: 1.5rem;
+        color: #e5e5e5;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+    }
+    
+    .hero-buttons .btn {
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+    }
+    
+    .hero-buttons .btn-danger {
+        background-color: var(--netflix-red);
+        border: none;
+    }
+    
+    .movie-credits-hero .credit-row {
+        margin-bottom: 0.5rem;
+    }
+    
+    .movie-credits-hero .credit-title {
+        color: #ccc;
+        margin-right: 0.5rem;
+    }
+    
+    .movie-credits-hero .credit-people {
+        color: white;
+        font-weight: 500;
+    }
+    
+    /* Movie meta (year, runtime, rating) */
+    .movie-meta {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    
+    .movie-year, .movie-runtime {
+        color: #e5e5e5;
+    }
+    
+    .movie-rating-badge {
+        background-color: var(--netflix-red);
+        color: white;
+        padding: 0.3rem 0.7rem;
         border-radius: 4px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
     }
     
     /* Movie Details Section */
@@ -438,22 +586,35 @@
         padding: 3rem 0;
     }
     
-    .poster-container {
-        position: relative;
-        margin-top: -7rem;
+    .detail-poster-container {
+        margin-top: 1rem;
     }
     
     .movie-poster {
         border-radius: 8px;
-        box-shadow: 0 5px 30px rgba(0, 0, 0, 0.7);
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+        width: 100%;
+        height: auto;
+        object-fit: cover;
     }
     
-    .no-poster {
-        width: 100%;
-        height: 450px;
-        background-color: #202020;
-        color: #555;
-        border-radius: 8px;
+    /* Section titles */
+    .section-title {
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: white;
+        border-left: 4px solid var(--netflix-red);
+        padding-left: 0.8rem;
+    }
+    
+    .section-title-large {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        color: white;
+        border-left: 5px solid var(--netflix-red);
+        padding-left: 1rem;
     }
     
     /* Rating display */
@@ -477,33 +638,12 @@
         font-size: 0.9rem;
     }
     
-    .movie-info-card {
-        padding: 0;
-    }
-    
-    .movie-meta {
-        display: flex;
-        align-items: center;
-        margin-bottom: 1rem;
-    }
-    
-    .movie-year, .movie-runtime {
-        color: #e5e5e5;
-        margin-right: 1.5rem;
-    }
-    
-    .movie-rating-badge {
-        background-color: var(--netflix-red);
-        color: white;
-        padding: 0.3rem 0.7rem;
-        border-radius: 4px;
-        font-weight: 600;
-    }
-    
+    /* Genre badges */
     .movie-genres {
         display: flex;
         flex-wrap: wrap;
         gap: 0.5rem;
+        margin-bottom: 2rem;
     }
     
     .genre-badge {
@@ -521,41 +661,51 @@
         color: white;
     }
     
-    .movie-overview {
-        color: #e5e5e5;
-        font-size: 1.1rem;
-        line-height: 1.6;
+    /* Info sections */
+    .info-section {
+        background-color: var(--netflix-light-dark);
+        border-radius: 8px;
+        padding: 1.2rem;
         margin-bottom: 2rem;
     }
     
-    .movie-credits {
-        margin-bottom: 1.5rem;
+    .info-item h3 {
+        color: #aaa;
+        font-size: 0.9rem;
+        margin-bottom: 0.3rem;
     }
     
-    .credit-row {
-        margin-bottom: 0.5rem;
-    }
-    
-    .credit-title {
-        color: #999;
-        margin-right: 0.5rem;
-    }
-    
-    .credit-people {
+    .info-item p {
         color: #e5e5e5;
+        font-size: 1rem;
     }
     
-    .movie-actions .btn-danger {
-        background-color: var(--netflix-red);
-        border: none;
+    /* OMDB Ratings Section */
+    .ratings-section h2 {
+        color: #e5e5e5;
+        font-weight: 600;
+        font-size: 1.25rem;
     }
     
-    .movie-actions .btn-outline-light {
-        border-color: #aaa;
+    .rating-card {
+        background-color: var(--netflix-light-dark);
+        border-radius: 8px;
+        transition: all 0.3s ease;
     }
     
-    .movie-actions .btn-outline-light:hover {
-        background-color: rgba(255, 255, 255, 0.1);
+    .rating-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+    
+    .rating-card h3 {
+        color: #aaa;
+        font-size: 0.9rem;
+    }
+    
+    .rating-card .rating-value {
+        font-size: 1.3rem;
+        font-weight: 700;
     }
     
     /* Social sharing buttons */
@@ -583,6 +733,8 @@
         padding: 0.75rem 0;
         margin-bottom: 0;
         background-color: transparent;
+        z-index: 100;
+        position: relative;
     }
     
     .breadcrumb-item a {
@@ -611,11 +763,16 @@
         color: white;
     }
     
+    /* Modal titles */
+    .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+    
     /* Responsive Adjustments */
     @media (max-width: 767px) {
         .movie-hero {
-            height: 50vh;
-            min-height: 400px;
+            min-height: 100vh;
         }
         
         .movie-hero-title {
@@ -626,10 +783,38 @@
             font-size: 1.2rem;
         }
         
-        .poster-container {
-            margin-top: 0;
-            margin-bottom: 2rem;
+        .movie-overview-hero {
+            font-size: 1rem;
         }
+        
+        .backdrop-overlay {
+            background: linear-gradient(to right, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.8) 100%),
+                         linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.3) 100%);
+        }
+        
+        .hero-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            width: 100%;
+        }
+        
+        .hero-buttons .btn {
+            width: 100%;
+        }
+    }
+    
+    /* Visually hidden class for screen readers */
+    .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
     }
 </style>
 @endpush
@@ -637,24 +822,146 @@
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const playTrailerBtn = document.getElementById('playTrailerBtn');
-        const playTrailerBtnAlt = document.getElementById('playTrailerBtnAlt');
-        const trailerIframe = document.getElementById('trailerIframe');
-        const trailerModal = new bootstrap.Modal(document.getElementById('trailerModal'));
+        console.log("DOM loaded - Initializing modals");
         
-        const playTrailer = function() {
-            // Set the iframe src with the TMDB ID
-            trailerIframe.src = `https://autoembed.co/movie/tmdb/{{ $movie['id'] }}`;
-            trailerModal.show();
+        // DOM Elements
+        const playTrailerBtn = document.getElementById('playTrailerBtn');
+        const trailerIframe = document.getElementById('trailerIframe');
+        const trailerModalEl = document.getElementById('trailerModal');
+        const offerModalEl = document.getElementById('offerModal');
+        const skipOfferButton = document.getElementById('skipOfferButton');
+        
+        console.log("Play button exists:", !!playTrailerBtn);
+        console.log("Offer modal exists:", !!offerModalEl);
+        console.log("Trailer modal exists:", !!trailerModalEl);
+        console.log("Skip button exists:", !!skipOfferButton);
+        
+        // Initialize modals with specific options
+        const trailerModal = new bootstrap.Modal(trailerModalEl, {
+            backdrop: 'static' // Prevent closing when clicking outside
+        });
+        
+        const offerModal = new bootstrap.Modal(offerModalEl, {
+            backdrop: 'static', // Prevent closing when clicking outside
+            keyboard: false // Prevent closing with Esc key
+        });
+        
+        // Close button should be disabled until timer expires
+        const closeBtn = offerModalEl.querySelector('.btn-close');
+        closeBtn.style.display = 'none'; // Hide close button
+        
+        let skipTimeout = {{ config('site.offer_skip_timeout', 10) }};
+        let skipTimer;
+        
+        const updateSkipButtonText = function(seconds) {
+            skipOfferButton.textContent = "{{ config('site.offer_skip_text', 'Skip (Available in %s seconds)') }}".replace('%s', seconds);
+            // Also update aria-label for accessibility
+            skipOfferButton.setAttribute('aria-label', `Skip offer (available in ${seconds} seconds)`);
         };
         
-        playTrailerBtn.addEventListener('click', playTrailer);
-        playTrailerBtnAlt.addEventListener('click', playTrailer);
+        const enableSkipButton = function() {
+            console.log("Enabling skip button");
+            skipOfferButton.disabled = false;
+            skipOfferButton.textContent = "Skip";
+            skipOfferButton.setAttribute('aria-label', 'Skip offer');
+            closeBtn.style.display = ''; // Show close button when timer expires
+        };
         
-        // When modal is hidden, stop the video by setting iframe src to blank
-        document.getElementById('trailerModal').addEventListener('hidden.bs.modal', function() {
+        const startSkipTimer = function() {
+            console.log("Starting skip timer");
+            // Reset timer state
+            skipTimeout = {{ config('site.offer_skip_timeout', 10) }};
+            skipOfferButton.disabled = true;
+            
+            // Update initial text
+            updateSkipButtonText(skipTimeout);
+            
+            // Clear any existing timer
+            if (skipTimer) {
+                clearInterval(skipTimer);
+            }
+            
+            // Start new timer
+            skipTimer = setInterval(function() {
+                skipTimeout--;
+                console.log("Timer tick:", skipTimeout);
+                updateSkipButtonText(skipTimeout);
+                
+                if (skipTimeout <= 0) {
+                    clearInterval(skipTimer);
+                    enableSkipButton();
+                }
+            }, 1000);
+        };
+        
+        const playTrailer = function() {
+            console.log("Playing trailer");
+            // For OMDB API, we'll use the IMDb ID to find trailers
+            const imdbId = '{{ $movie['id'] }}';
+            // Set the iframe src with the IMDb ID
+            trailerIframe.src = `https://autoembed.co/movie/imdb/${imdbId}`;
+            trailerModal.show();
+            // Announce for screen readers that trailer is playing
+            const announcement = document.createElement('div');
+            announcement.setAttribute('aria-live', 'polite');
+            announcement.classList.add('visually-hidden');
+            announcement.textContent = 'Trailer is now playing';
+            document.body.appendChild(announcement);
+            setTimeout(() => announcement.remove(), 3000);
+        };
+        
+        // Only the skip button can close the offer modal
+        skipOfferButton.addEventListener('click', function() {
+            console.log("Skip button clicked, disabled:", skipOfferButton.disabled);
+            if (!skipOfferButton.disabled) {
+                console.log("Hiding offer modal");
+                offerModal.hide();
+                
+                // Wait for modal transition to complete before showing trailer
+                console.log("Will show trailer after delay");
+                setTimeout(() => {
+                    playTrailer();
+                }, 500);
+            }
+        });
+        
+        // Handle the play button click
+        playTrailerBtn.addEventListener('click', function(e) {
+            console.log("Watch button clicked");
+            e.preventDefault();
+            
+            // Check if we should show the offer popup
+            if ({{ config('site.show_offer_popup', 'true') ? 'true' : 'false' }}) {
+                console.log("Showing offer popup");
+                // Reset skip button state before showing modal
+                skipOfferButton.disabled = true;
+                closeBtn.style.display = 'none';
+                
+                // Show the offer modal
+                offerModal.show();
+                
+                // Start the countdown
+                startSkipTimer();
+            } else {
+                // If offer popup is disabled, show trailer directly
+                console.log("Offer popup disabled, showing trailer directly");
+                playTrailer();
+            }
+        });
+        
+        // When offer modal is hidden, reset timers
+        offerModalEl.addEventListener('hidden.bs.modal', function() {
+            console.log("Offer modal closed, clearing timer");
+            clearInterval(skipTimer);
+        });
+        
+        // When trailer modal is hidden, stop the video
+        trailerModalEl.addEventListener('hidden.bs.modal', function() {
+            console.log("Trailer modal closed, clearing iframe");
             trailerIframe.src = 'about:blank';
         });
+        
+        console.log("All event listeners attached");
     });
 </script>
 @endpush

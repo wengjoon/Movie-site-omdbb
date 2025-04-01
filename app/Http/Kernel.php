@@ -21,6 +21,8 @@ class Kernel extends HttpKernel
         \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class,
         \App\Http\Middleware\TrimStrings::class,
         \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
+      \App\Http\Middleware\MontagVerification::class, // Add this line
+      
     ];
 
     /**
@@ -81,6 +83,8 @@ class Kernel extends HttpKernel
         \App\Http\Middleware\ContentSecurityPolicy::class, // Add the CSP middleware
     ],
     // ...
+      
+     
     
    
 ];

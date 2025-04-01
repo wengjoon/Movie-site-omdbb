@@ -16,49 +16,64 @@
 <div class="container mt-4">
     <div class="search-header">
         <h1>Results for "{{ $query }}"</h1>
-        <form action="{{ route('movies.search') }}" method="get" class="mt-3">
+        <form action="{{ route('movies.search') }}" method="get" class="mt-3" role="search" aria-label="Movie search">
             <div class="input-group">
-                <input type="text" name="query" class="form-control search-input" value="{{ $query }}" placeholder="Search for movies...">
+                <input type="text" name="query" class="form-control search-input" value="{{ $query }}" placeholder="Search for movies..." aria-label="Search query">
                 <button class="btn btn-primary search-btn" type="submit">Search</button>
             </div>
         </form>
     </div>
 
     @if(count($results) > 0)
-        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4">
-            @foreach($results as $movie)
-                <div class="col">
-                    <div class="movie-card h-100">
-                        <a href="{{ route('movies.show', ['id' => $movie['id']]) }}" class="text-decoration-none">
-                            @if($movie['poster_path'])
-                                <img src="https://image.tmdb.org/t/p/w500{{ $movie['poster_path'] }}" class="card-img-top" alt="{{ $movie['title'] }} poster - Watch on 123 Movies Pro" loading="lazy">
-                            @else
-                                <div class="card-img-top bg-secondary d-flex align-items-center justify-content-center">
-                                    <span class="text-light"><i class="bi bi-film" style="font-size: 3rem;"></i></span>
-                                </div>
-                            @endif
-                            <div class="card-body">
-                                <h5 class="movie-title" title="{{ $movie['title'] }}">{{ $movie['title'] }}</h5>
-                                @if(isset($movie['release_date']) && !empty($movie['release_date']))
-    <p class="movie-year">{{ substr($movie['release_date'], 0, 4) }}</p>
-@endif
-                                <p class="movie-rating">
-    <i class="bi bi-star-fill me-1"></i> 
-    {{ isset($movie['vote_average']) ? number_format($movie['vote_average'], 1) : 'N/A' }}/10
-</p>
-                                <div class="movie-hover-info">
-                                    <div class="hover-buttons">
-                                        <a href="{{ route('movies.show', ['id' => $movie['id']]) }}" class="btn btn-sm btn-danger">
-                                            <i class="bi bi-info-circle me-1"></i> Details
-                                        </a>
+        <section aria-label="Search results">
+            <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4">
+                @foreach($results as $movie)
+                    <div class="col">
+                        <article class="movie-card h-100">
+                            <a href="{{ route('movies.show', ['id' => $movie['id']]) }}" class="text-decoration-none">
+                                @php
+                                    $posterUrl = '';
+                                    if(!empty($movie['poster_path']) && strpos($movie['poster_path'], 'http') === 0) {
+                                        // OMDB full URL
+                                        $posterUrl = $movie['poster_path'];
+                                    } elseif(!empty($movie['poster_path'])) {
+                                        // TMDB path
+                                        $posterUrl = 'https://image.tmdb.org/t/p/w500' . $movie['poster_path'];
+                                    } else {
+                                        $posterUrl = '';
+                                    }
+                                @endphp
+                                
+                                @if(!empty($posterUrl))
+                                    <img src="{{ $posterUrl }}" class="card-img-top" alt="{{ $movie['title'] }} poster - Watch on 123 Movies Pro" loading="lazy">
+                                @else
+                                    <div class="card-img-top bg-secondary d-flex align-items-center justify-content-center" aria-hidden="true">
+                                        <span class="text-light"><i class="bi bi-film" style="font-size: 3rem;"></i></span>
+                                    </div>
+                                @endif
+                                <div class="card-body">
+                                    <h2 class="movie-title" title="{{ $movie['title'] }}">{{ $movie['title'] }}</h2>
+                                    @if(isset($movie['release_date']) && !empty($movie['release_date']))
+                                        <p class="movie-year">{{ substr($movie['release_date'], 0, 4) }}</p>
+                                    @endif
+                                    <p class="movie-rating">
+                                        <i class="bi bi-star-fill me-1" aria-hidden="true"></i> 
+                                        <span>{{ isset($movie['vote_average']) ? number_format($movie['vote_average'], 1) : 'N/A' }}/10</span>
+                                    </p>
+                                    <div class="movie-hover-info">
+                                        <div class="hover-buttons">
+                                            <a href="{{ route('movies.show', ['id' => $movie['id']]) }}" class="btn btn-sm btn-danger">
+                                                <i class="bi bi-info-circle me-1" aria-hidden="true"></i> Details
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </a>
+                            </a>
+                        </article>
                     </div>
-                </div>
-            @endforeach
-        </div>
+                @endforeach
+            </div>
+        </section>
 
         @if($total_pages > 1)
             <div class="d-flex justify-content-center mt-5">
@@ -66,8 +81,9 @@
                     <ul class="pagination">
                         @if($current_page > 1)
                             <li class="page-item">
-                                <a class="page-link" href="{{ route('movies.search', ['query' => $query, 'page' => $current_page - 1]) }}" rel="prev">
-                                    <i class="bi bi-chevron-left"></i>
+                                <a class="page-link" href="{{ route('movies.search', ['query' => $query, 'page' => $current_page - 1]) }}" rel="prev" aria-label="Previous page">
+                                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                                    <span class="visually-hidden">Previous page</span>
                                 </a>
                             </li>
                         @endif
@@ -82,14 +98,15 @@
                         
                         @for($i = $startPage; $i <= $endPage; $i++)
                             <li class="page-item {{ $i == $current_page ? 'active' : '' }}">
-                                <a class="page-link" href="{{ route('movies.search', ['query' => $query, 'page' => $i]) }}">{{ $i }}</a>
+                                <a class="page-link" href="{{ route('movies.search', ['query' => $query, 'page' => $i]) }}" aria-label="Page {{ $i }}" {{ $i == $current_page ? 'aria-current="page"' : '' }}>{{ $i }}</a>
                             </li>
                         @endfor
                         
                         @if($current_page < $total_pages)
                             <li class="page-item">
-                                <a class="page-link" href="{{ route('movies.search', ['query' => $query, 'page' => $current_page + 1]) }}" rel="next">
-                                    <i class="bi bi-chevron-right"></i>
+                                <a class="page-link" href="{{ route('movies.search', ['query' => $query, 'page' => $current_page + 1]) }}" rel="next" aria-label="Next page">
+                                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                                    <span class="visually-hidden">Next page</span>
                                 </a>
                             </li>
                         @endif
@@ -98,11 +115,11 @@
             </div>
         @endif
     @else
-        <div class="alert" style="background-color: rgba(22, 22, 22, 0.7); color: white; border: 1px solid rgba(255, 255, 255, 0.1);">
+        <div class="alert" style="background-color: rgba(22, 22, 22, 0.7); color: white; border: 1px solid rgba(255, 255, 255, 0.1);" role="alert">
             <div class="d-flex align-items-center">
-                <i class="bi bi-exclamation-circle me-3" style="font-size: 2rem;"></i>
+                <i class="bi bi-exclamation-circle me-3" style="font-size: 2rem;" aria-hidden="true"></i>
                 <div>
-                    <h4 class="alert-heading">No Results Found</h4>
+                    <h2 class="alert-heading h4">No Results Found</h2>
                     <p class="mb-0">We couldn't find any movies matching "{{ $query }}". Please try different keywords.</p>
                 </div>
             </div>
@@ -180,6 +197,30 @@
     .page-link:hover {
         background-color: rgba(229, 9, 20, 0.7);
         color: white;
+    }
+    
+    /* Make movie titles use h2 but maintain h5 styling */
+    h2.movie-title {
+        font-weight: 600;
+        font-size: 1.1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: white;
+        margin: 0.5rem 0 0.25rem 0;
+    }
+    
+    /* Visually hidden class for screen readers */
+    .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
     }
 </style>
 @endpush

@@ -6,6 +6,13 @@
     
     {{-- Include centralized SEO meta tags --}}
     @include('partials.seo-meta')
+  
+  {{-- Favicon --}}
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
+    
     
     {{-- Performance optimizations --}}
     <link rel="preconnect" href="https://api.themoviedb.org">
@@ -18,6 +25,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
+  
     
     {{-- Custom CSS with versioning (if present) --}}
     @if(file_exists(public_path('css/custom.css')))
@@ -233,10 +242,11 @@
             margin-top: 3rem;
         }
         
-        footer h5 {
+        footer h2.h5 {
             color: white;
             font-weight: 600;
             margin-bottom: 1.2rem;
+            font-size: 1.25rem;
         }
         
         footer ul {
@@ -291,45 +301,116 @@
                 font-size: 1rem;
             }
         }
+        
+        /* Accessibility improvements */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            padding: 8px;
+            z-index: 100;
+            background: var(--netflix-red);
+            color: white;
+            transition: top 0.3s;
+        }
+        
+        .skip-link:focus {
+            top: 0;
+        }
+        
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            margin: -1px;
+            padding: 0;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+        
+        .visually-hidden:focus {
+            position: static;
+            width: auto;
+            height: auto;
+            margin: 0;
+            overflow: visible;
+            clip: auto;
+        }
+        
+        /* Section titles with proper heading styles */
+        h2.section-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: white;
+            border-left: 4px solid var(--netflix-red);
+            padding-left: 0.8rem;
+        }
+        
+        h2.section-title-large {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: white;
+            border-left: 5px solid var(--netflix-red);
+            padding-left: 1rem;
+        }
+        
+        /* Movie card titles in grids should be h3 */
+        h3.movie-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: white;
+            margin-top: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
     </style>
     @stack('styles')
+  
+  
+  <!-- Fathom - beautiful, simple website analytics -->
+<script src="https://cdn.usefathom.com/script.js" data-site="{{ config('analytics.fathom_site_id') }}" defer></script>
+<!-- / Fathom -->
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{{ route('movies.index') }}" style="width: auto; white-space: nowrap; overflow: visible;">{{ config('seo.site_name') }}</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ route('movies.index') }}">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ route('movies.search', ['query' => 'movie']) }}">Movies</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ route('movies.search', ['query' => 'tv show']) }}">TV Shows</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+    <!-- Skip navigation link for accessibility -->
+    <a href="#main-content" class="skip-link visually-hidden">Skip to main content</a>
 
-    <main>
+    <header>
+        <nav class="navbar navbar-expand-lg navbar-dark sticky-top" aria-label="Main navigation">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="{{ route('movies.index') }}" style="width: auto; white-space: nowrap; overflow: visible;">{{ config('seo.site_name') }}</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-expanded="false" aria-controls="navbarNav" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ route('movies.index') }}">Home</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main id="main-content">
         @yield('content')
     </main>
 
-    <footer>
+    <footer role="contentinfo">
         <div class="container">
             <div class="row">
                 <div class="col-md-4 mb-4">
-                    <h5>{{ config('seo.site_name') }}</h5>
+                    <h2 class="h5">{{ config('seo.site_name') }}</h2>
                     <p>The best free movie streaming site to watch movies online. Enjoy high quality content with no registration.</p>
                 </div>
                 <div class="col-md-4 mb-4">
-                    <h5>Quick Links</h5>
+                    <h2 class="h5">Quick Links</h2>
                     <ul class="list-unstyled">
                         <li><a href="{{ route('movies.index') }}">Home</a></li>
                         <li><a href="{{ route('movies.search', ['query' => 'action']) }}">Action Movies</a></li>
@@ -338,12 +419,12 @@
                     </ul>
                 </div>
                 <div class="col-md-4 mb-4">
-                    <h5>Popular TV Shows</h5>
+                    <h2 class="h5">Popular Movies</h2>
                     <ul class="list-unstyled">
-                        <li><a href="{{ route('movies.search', ['query' => 'friends']) }}">Friends</a></li>
-                        <li><a href="{{ route('movies.search', ['query' => 'breaking bad']) }}">Breaking Bad</a></li>
-                        <li><a href="{{ route('movies.search', ['query' => 'game of thrones']) }}">Game of Thrones</a></li>
-                        <li><a href="{{ route('movies.search', ['query' => 'stranger things']) }}">Stranger Things</a></li>
+                        <li><a href="{{ route('movies.search', ['query' => 'shawshank redemption']) }}">Shawshank Redemption</a></li>
+                        <li><a href="{{ route('movies.search', ['query' => 'the godfather']) }}">The Godfather</a></li>
+                        <li><a href="{{ route('movies.search', ['query' => 'star wars']) }}">Star Wars</a></li>
+                        <li><a href="{{ route('movies.search', ['query' => 'goodfellas']) }}">Good Fellas</a></li>
                     </ul>
                 </div>
             </div>

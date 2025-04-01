@@ -3,18 +3,22 @@
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
     </IfModule>
-
     RewriteEngine On
-
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
-
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_URI} (.+)/$
     RewriteRule ^ %1 [L,R=301]
-
+    
+    # Properly handle robots.txt and sitemap.xml files
+    RewriteCond %{REQUEST_URI} ^/robots\.txt$ [NC]
+    RewriteRule ^ - [L]
+    
+    RewriteCond %{REQUEST_URI} ^/.*sitemap.*\.xml$ [NC]
+    RewriteRule ^ - [L]
+    
     # Send Requests To Front Controller...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f
@@ -24,10 +28,8 @@
 # Add browser caching rules
 <IfModule mod_expires.c>
     ExpiresActive On
-
     # Default expiry: 1 hour
     ExpiresDefault "access plus 1 hour"
-
     # Images
     ExpiresByType image/jpeg "access plus 1 year"
     ExpiresByType image/png "access plus 1 year"
@@ -36,12 +38,10 @@
     ExpiresByType image/webp "access plus 1 year"
     ExpiresByType image/avif "access plus 1 year"
     ExpiresByType image/x-icon "access plus 1 year"
-
     # CSS and JavaScript
     ExpiresByType text/css "access plus 1 month"
     ExpiresByType text/javascript "access plus 1 month"
     ExpiresByType application/javascript "access plus 1 month"
-
     # Fonts
     ExpiresByType font/ttf "access plus 1 year"
     ExpiresByType font/otf "access plus 1 year"
@@ -49,10 +49,10 @@
     ExpiresByType font/woff2 "access plus 1 year"
     ExpiresByType application/font-woff "access plus 1 year"
     ExpiresByType application/font-woff2 "access plus 1 year"
-    
     # Data interchange
     ExpiresByType application/json "access plus 0 seconds"
-    ExpiresByType application/xml "access plus 0 seconds"
+    ExpiresByType application/xml "access plus 1 day"
+    ExpiresByType text/xml "access plus 1 day"
 </IfModule>
 
 # Add Cache-Control headers
@@ -61,12 +61,17 @@
     <FilesMatch "\.(jpg|jpeg|png|gif|ico|svg|webp|avif|ttf|otf|woff|woff2)$">
         Header set Cache-Control "max-age=31536000, public"
     </FilesMatch>
-
+    
     # 1 MONTH - CSS, JavaScript
     <FilesMatch "\.(css|js)$">
         Header set Cache-Control "max-age=2592000, public"
     </FilesMatch>
-
+    
+    # 1 DAY - XML files including sitemaps
+    <FilesMatch "\.(xml)$">
+        Header set Cache-Control "max-age=86400, public"
+    </FilesMatch>
+    
     # NEVER CACHE - Dynamic content
     <FilesMatch "\.(php|html|htm)$">
         Header set Cache-Control "max-age=0, no-cache, no-store, must-revalidate"
@@ -102,19 +107,20 @@
 <IfModule mod_headers.c>
     # Protect against XSS attacks
     Header set X-XSS-Protection "1; mode=block"
-    
     # Prevent MIME-type sniffing
     Header set X-Content-Type-Options "nosniff"
-    
     # Prevent clickjacking
     Header set X-Frame-Options "SAMEORIGIN"
-    
     # Enforce HTTPS
     Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
-    
     # Referrer policy
     Header set Referrer-Policy "strict-origin-when-cross-origin"
-    
     # Permissions policy
     Header set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  
+</IfModule>
+
+# Test rule
+<IfModule mod_headers.c>
+    Header set X-Htaccess-Test "Working"
 </IfModule>

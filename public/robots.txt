@@ -1,20 +1,18 @@
+# Sitemap for all bots
+Sitemap: https://123moviespro.cc/sitemap.xml
+
+# Rules for all bots
 User-agent: *
-Allow: /
-Disallow: /search
-Disallow: /search?query=*
+Disallow: /admin/           # Block admin areas
+Disallow: /login/           # Block login pages
+Allow: /                    # Allow everything else (optional, implied)
 
-# Disallow duplicate content
-Disallow: /*?*&*=*
-
-# Allow sitemap
-Sitemap: https://your-domain.com/sitemap.xml
-
-# Crawl delay for heavy bots
+# Crawl delay for heavy SEO bots
 User-agent: AhrefsBot
-Crawl-delay: 10
+Crawl-delay: 5              # Reduced to 5 seconds for balance
 
 User-agent: MJ12bot
-Crawl-delay: 10
+Crawl-delay: 5
 
 User-agent: SemrushBot
-Crawl-delay: 10
+Crawl-delay: 5
